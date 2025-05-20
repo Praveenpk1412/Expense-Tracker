@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Expense Tracker</h1>
+            <button id="toggle-theme">🌗</button>
+        </header>
+
+        <form method="POST" class="add-form">
+            <input type="number" name="amount" placeholder="Amount" required>
+            <input type="text" name="category" placeholder="Category" required>
+            <input type="date" name="date" required>
+            <button type="submit" class="addb">Add</button>
+        </form>
+
+        <h2>Expenses</h2>
+        <ul class="expense-list">
+            {% for expense in expenses %}
+                <li>
+                    <span>${{ expense[1] }} - {{ expense[2] }} ({{ expense[3] }})</span>
+                    <form action="/delete/{{ expense[0] }}" method="POST" style="display:inline;">
+                        <button>Delete</button>
+                    </form>
+                    <a href="/edit/{{ expense[0] }}" >Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h3>Total: ${{ '%.2f' % total }}</h3>
+
+        <form action="/export" method="GET">
+            <button type="submit">📤 Export CSV</button>
+        </form>
+
+        <div style="width: 400px; height: 300px; margin: 20px auto; position: relative;">
+            <canvas id="expenseChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('toggle-theme').onclick = () => {
+        document.body.classList.toggle('dark');
+    };
+
+    // Extract expense data from the DOM
+    (function () {
+        try {
+            const expenseItems = document.querySelectorAll('.expense-list li span');
+            const expenses = [];
+            
+            expenseItems.forEach(item => {
+                const text = item.textContent;
+                // Parse text like "$50.00 - Food (2023-01-15)"
+                const match = text.match(/\$(\d+\.?\d*)\s*-\s*(.+?)\s*\(/);
+                if (match) {
+                    const amount = parseFloat(match[1]);
+                    const category = match[2].trim();
+                    expenses.push({ amount, category });
+                }
+            });
+            
+            // Check if expenses data exists
+            if (!expenses || expenses.length === 0) {
+                console.log('No expenses data available for chart');
+                return;
+            }
+            
+            const categories = {};
+            expenses.forEach(e => {
+                if (e && e.amount && e.category) {
+                    const cat = e.category;
+                    categories[cat] = (categories[cat] || 0) + e.amount;
+                }
+            });
+
+            // Only create chart if we have categories
+            if (Object.keys(categories).length > 0) {
+                const ctx = document.getElementById('expenseChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(categories),
+                        datasets: [{
+                            data: Object.values(categories),
+                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#7bdcb5', '#f06292', '#ff9f40', '#4bc0c0']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed;
+                                        const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `${label}: ${value.toFixed(2)} (${percentage}%)`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                formatter: (value, context) => {
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${percentage}%`;
+                                },
+                                color: '#fff',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error creating expense chart:', error);
+        }
+    })();
+    </script>
+</body>
+</html>
